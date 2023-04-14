@@ -42,11 +42,14 @@ contract Staking is Ownable, Settings {
         uint256 stakingBalance;
         uint256 token0Accumulator;
         uint256 token1Accumulator;
-        uint256 lastStakingTimestamp;
+        uint256 lastActionTimestamp;
     }
 
     address public constant TOKEN0 = 0x954ac1c73e16c77198e83C088aDe88f6223F3d44; // LEVI
     address public constant TOKEN1 = 0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8; // USDC
+
+    uint256 public token0Accumulator;
+    uint256 public token1Accumulator;
 
     uint256 public lastUpdate;
     uint256 public totalStaked;
@@ -71,6 +74,19 @@ contract Staking is Ownable, Settings {
         uint256 amount
     );
 
+    event EmergencyWithdrawnFunds(uint256 amountToken0, uint256 amountToken1);
+
+    /**
+     * @dev Modifier that checks if the staking period is ongoing, the user is staking a non-zero amount of tokens,
+     * and the total amount staked by all users does not exceed a maximum limit.
+     * Calls the `canStake` function to perform the actual checks.
+     * @param amount The amount of tokens the user wants to stake.
+     **/
+    modifier onlyIfCanStake(uint256 amount) {
+        canStake(amount);
+        _;
+    }
+
     /**
      * @dev Initializes the staking contract with the required parameters.
      *      This function can only be called by the contract owner.
@@ -79,12 +95,40 @@ contract Staking is Ownable, Settings {
      * @notice This function transfers 1,000 of TOKEN0 and TOKEN1 to the staking contract.
      *         The staking period will end 30 days after the function is called.
      */
-    function init() external onlyOwner {
+    function init(uint256 initialDeposit) external onlyOwner {
         if (END_STAKING_UNIX_TIME > 0) revert Staking_Already_Initialized();
 
+        uint256 rewards0 = 1_000 ether;
+        uint256 rewards1 = 1_000 ether;
+
         END_STAKING_UNIX_TIME = block.timestamp + 30 days;
-        IERC20(TOKEN0).safeTransferFrom(msg.sender, address(this), 1_000 ether);
-        IERC20(TOKEN1).safeTransferFrom(msg.sender, address(this), 1_000 ether);
+        IERC20(TOKEN0).safeTransferFrom(msg.sender, address(this), rewards0);
+        IERC20(TOKEN1).safeTransferFrom(msg.sender, address(this), rewards1);
+
+        stake(initialDeposit);
+    }
+
+    /**
+     * @dev Check if the staking period is ongoing, the user is staking a non-zero amount of tokens,
+     * and the total amount staked by all users does not exceed a maximum limit.
+     * @param amount The amount of tokens the user wants to stake.
+     * reverts with Staking_Not_Initialized if the staking period has not been initialized.
+     * reverts with Staking_Period_Ended if the staking period has ended.
+     * reverts with Staking_Insufficient_Amount_To_Stake if the user is staking a zero amount of tokens.
+     * reverts with Staking_Max_Limit_Reached if the total amount staked by all users would exceed the maximum limit
+     * after the current `amount` being staked is added.
+     */
+    function canStake(uint256 amount) internal view {
+        if (END_STAKING_UNIX_TIME == 0) revert Staking_Not_Initialized();
+
+        if (block.timestamp > END_STAKING_UNIX_TIME) {
+            revert Staking_Period_Ended();
+        }
+
+        if (amount == 0) revert Staking_Insufficient_Amount_To_Stake();
+
+        if (totalStaked + amount > MAX_ALLOWED_TO_STAKE)
+            revert Staking_Max_Limit_Reached();
     }
 
     /**
@@ -105,30 +149,15 @@ contract Staking is Ownable, Settings {
      *
      * @param amount The amount of tokens to stake.
      */
-    function stake(uint256 amount) public {
-        if (END_STAKING_UNIX_TIME == 0) revert Staking_Not_Initialized();
-
-        if (block.timestamp > END_STAKING_UNIX_TIME) {
-            revert Staking_Period_Ended();
-        }
-
-        if (amount == 0) revert Staking_Insufficient_Amount_To_Stake();
-
-        if (totalStaked + amount > MAX_ALLOWED_TO_STAKE)
-            revert Staking_Max_Limit_Reached();
-
-        lastUpdate = block.timestamp;
-
+    function stake(uint256 amount) public onlyIfCanStake(amount) {
         UserInfo storage userInfo = stakingDetails[msg.sender];
         userInfo.stakingBalance += amount;
-        userInfo.lastStakingTimestamp = block.timestamp;
 
-        if (userInfo.stakingBalance >= MIN_STAKED_TO_REWARD) {
-            userInfo.token0Accumulator = getNewAccumulator(YieldType.TOKEN0);
-            userInfo.token1Accumulator = getNewAccumulator(YieldType.TOKEN1);
-        }
+        updateAccumulators(userInfo, YieldType.TOKEN0);
+        updateAccumulators(userInfo, YieldType.TOKEN1);
 
         totalStaked += amount;
+        lastUpdate = block.timestamp;
 
         IERC20(TOKEN0).safeTransferFrom(msg.sender, address(this), amount);
 
@@ -154,22 +183,20 @@ contract Staking is Ownable, Settings {
         uint256 fee = 0;
 
         if (
-            block.timestamp >=
-            userInfo.lastStakingTimestamp + WITHDRAW_EARLIER_FEE_LOCK_TIME
+            block.timestamp <
+            userInfo.lastActionTimestamp + WITHDRAW_EARLIER_FEE_LOCK_TIME
         ) {
             fee = amount.mul(WITHDRAW_EARLIER_FEE).div(100);
         }
 
         userInfo.stakingBalance -= amount;
 
-        if (userInfo.stakingBalance < MIN_STAKED_TO_REWARD) {
-            userInfo.token0Accumulator = 0;
-            userInfo.token1Accumulator = 0;
-        }
+        updateAccumulators(userInfo, YieldType.TOKEN0);
+        updateAccumulators(userInfo, YieldType.TOKEN1);
 
-        userInfo.lastStakingTimestamp = block.timestamp;
         totalStaked -= amount;
         collectedFees += fee;
+        lastUpdate = block.timestamp;
 
         IERC20(TOKEN0).safeTransfer(msg.sender, amount - fee);
 
@@ -200,6 +227,8 @@ contract Staking is Ownable, Settings {
         if (claimToken0 && !compoundToken0) claimToken0Rewards(userInfo);
         if (claimToken1) claimToken1Rewards(userInfo);
         if (compoundToken0) compoundToken0Rewards(userInfo);
+
+        lastUpdate = block.timestamp;
     }
 
     /**
@@ -216,7 +245,7 @@ contract Staking is Ownable, Settings {
 
         if (userToken0Rewards == 0) revert Staking_No_Rewards_Available();
 
-        updateUserAccumulators(userInfo, YieldType.TOKEN0);
+        updateAccumulators(userInfo, YieldType.TOKEN0);
 
         IERC20(TOKEN0).safeTransfer(msg.sender, userToken0Rewards);
         emit RewardsClaimed(block.timestamp, msg.sender, userToken0Rewards, 0);
@@ -236,39 +265,10 @@ contract Staking is Ownable, Settings {
 
         if (userToken1Rewards == 0) revert Staking_No_Rewards_Available();
 
-        updateUserAccumulators(userInfo, YieldType.TOKEN1);
+        updateAccumulators(userInfo, YieldType.TOKEN1);
 
         IERC20(TOKEN0).safeTransfer(msg.sender, userToken1Rewards);
         emit RewardsClaimed(block.timestamp, msg.sender, 0, userToken1Rewards);
-    }
-
-    /**
-     * @dev Updates the user's yield accumulators based on the current timestamp and staking details.
-     * @param userInfo The struct containing the user's staking details.
-     * @param yieldType The type of yield being updated (TOKEN0 or TOKEN1).
-     */
-    function updateUserAccumulators(
-        UserInfo storage userInfo,
-        YieldType yieldType
-    ) internal {
-        uint256 accumulator = 0;
-
-        if (block.timestamp <= END_STAKING_UNIX_TIME) {
-            lastUpdate = block.timestamp;
-        }
-
-        if (
-            userInfo.stakingBalance >= MIN_STAKED_TO_REWARD &&
-            block.timestamp <= END_STAKING_UNIX_TIME
-        ) {
-            accumulator = getNewAccumulator(yieldType);
-        }
-
-        if (yieldType == YieldType.TOKEN0) {
-            userInfo.token0Accumulator = accumulator;
-        } else {
-            userInfo.token1Accumulator = accumulator;
-        }
     }
 
     /**
@@ -286,10 +286,48 @@ contract Staking is Ownable, Settings {
 
         if (userToken0Rewards == 0) revert Staking_No_Rewards_Available();
 
-        userInfo.token0Accumulator = 0;
+        userInfo.stakingBalance += userToken0Rewards;
 
-        stake(userToken0Rewards);
+        updateAccumulators(userInfo, YieldType.TOKEN0);
+
         emit RewardsCompounded(block.timestamp, msg.sender, userToken0Rewards);
+    }
+
+    /**
+     * @dev Updates the user's yield accumulators based on the current timestamp and staking details.
+     * @param userInfo The struct containing the user's staking details.
+     * @param yieldType The type of yield being updated (TOKEN0 or TOKEN1).
+     */
+    function updateAccumulators(
+        UserInfo storage userInfo,
+        YieldType yieldType
+    ) internal {
+        uint256 accumulator = 0;
+
+        if (
+            userInfo.stakingBalance >= MIN_STAKED_TO_REWARD &&
+            block.timestamp <= END_STAKING_UNIX_TIME
+        ) {
+            accumulator = getNewAccumulator(yieldType);
+
+            if (yieldType == YieldType.TOKEN0) {
+                token0Accumulator = accumulator;
+            } else {
+                token1Accumulator = accumulator;
+            }
+        }
+
+        if (yieldType == YieldType.TOKEN0) {
+            userInfo.token0Accumulator = accumulator;
+        } else {
+            userInfo.token1Accumulator = accumulator;
+        }
+
+        userInfo.lastActionTimestamp = block.timestamp;
+
+        // if (block.timestamp <= END_STAKING_UNIX_TIME) {
+        //     lastUpdate = block.timestamp;
+        // }
     }
 
     /**
@@ -315,7 +353,11 @@ contract Staking is Ownable, Settings {
 
         uint256 tokensPerStaked = numerator.div(totalStaked);
 
-        return tokensPerStaked;
+        uint256 accumulator = yieldType == YieldType.TOKEN0 // CHECKED
+            ? token0Accumulator
+            : token1Accumulator;
+
+        return accumulator + tokensPerStaked;
     }
 
     /**
@@ -335,6 +377,9 @@ contract Staking is Ownable, Settings {
             ? userInfo.token0Accumulator
             : userInfo.token1Accumulator;
 
+        // console.log(userInfo.stakingBalance);
+        // console.log(acc, userAcc);
+
         return ((userInfo.stakingBalance * (acc - userAcc)) /
             (yieldType == YieldType.TOKEN0 ? 1e24 : 1e6));
     }
@@ -344,11 +389,10 @@ contract Staking is Ownable, Settings {
      * Transfers the collected fees in TOKEN0 to the contract owner's address.
      */
     function collectFees() external onlyOwner {
-        IERC20(TOKEN0).safeTransferFrom(
-            address(this),
-            msg.sender,
-            collectedFees
-        );
+        uint256 fees = collectedFees;
+        collectedFees = 0;
+
+        IERC20(TOKEN0).safeTransfer(owner(), fees);
     }
 
     /**
@@ -357,9 +401,13 @@ contract Staking is Ownable, Settings {
      * This function should only be used in emergency situations and can lead to a loss of rewards for stakers.
      */
     function emergencyWithdraw() external onlyOwner {
-        uint256 leviBalance = IERC20(TOKEN0).balanceOf(address(this));
-        uint256 usdcBalance = IERC20(TOKEN1).balanceOf(address(this));
-        IERC20(TOKEN0).safeTransfer(msg.sender, leviBalance);
-        IERC20(TOKEN1).safeTransfer(msg.sender, usdcBalance);
+        uint256 token0Balance = IERC20(TOKEN0).balanceOf(address(this));
+        uint256 token1Balance = IERC20(TOKEN1).balanceOf(address(this));
+
+        totalStaked = 0;
+        IERC20(TOKEN0).safeTransfer(msg.sender, token0Balance);
+        IERC20(TOKEN1).safeTransfer(msg.sender, token1Balance);
+
+        emit EmergencyWithdrawnFunds(token0Balance, token1Balance);
     }
 }
