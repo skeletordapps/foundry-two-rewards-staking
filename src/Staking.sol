@@ -107,7 +107,7 @@ contract Staking is Ownable, Settings {
     ) external onlyOwner {
         if (END_STAKING_UNIX_TIME > 0) revert Staking_Already_Initialized();
 
-        END_STAKING_UNIX_TIME = block.timestamp + 30 days;
+        END_STAKING_UNIX_TIME = block.timestamp + (365 days * 3);
         IERC20(TOKEN0).safeTransferFrom(
             msg.sender,
             address(this),
@@ -204,6 +204,7 @@ contract Staking is Ownable, Settings {
             userInfo.lastActionTimestamp + WITHDRAW_EARLIER_FEE_LOCK_TIME
         ) {
             fee = amount.mul(WITHDRAW_EARLIER_FEE).div(100);
+            console.log("contract fee to pay: ", fee);
         }
 
         userInfo.stakingBalance -= amount;
