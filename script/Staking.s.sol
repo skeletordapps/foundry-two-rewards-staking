@@ -9,7 +9,10 @@ contract StakingScript is Script {
 
     function run() public {
         vm.startBroadcast();
-        new Staking();
+        address _token0 = vm.envAddress("LEVI_CONTRACT_ADDRESS");
+        address _token1 = vm.envAddress("USDC_CONTRACT_ADDRESS");
+
+        new Staking(_token0, _token1);
         vm.stopBroadcast();
     }
 }

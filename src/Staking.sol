@@ -45,8 +45,8 @@ contract Staking is Ownable, Settings {
         uint256 lastActionTimestamp;
     }
 
-    address public constant TOKEN0 = 0x954ac1c73e16c77198e83C088aDe88f6223F3d44; // LEVI
-    address public constant TOKEN1 = 0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8; // USDC
+    address public TOKEN0;
+    address public TOKEN1;
 
     uint256 public token0Accumulator;
     uint256 public token1Accumulator;
@@ -87,6 +87,11 @@ contract Staking is Ownable, Settings {
         _;
     }
 
+    constructor(address _token0, address _token1) {
+        TOKEN0 = _token0;
+        TOKEN1 = _token1;
+    }
+
     /**
      * @dev Initializes the staking contract with the required parameters.
      *      This function can only be called by the contract owner.
@@ -95,15 +100,24 @@ contract Staking is Ownable, Settings {
      * @notice This function transfers 1,000 of TOKEN0 and TOKEN1 to the staking contract.
      *         The staking period will end 30 days after the function is called.
      */
-    function init(uint256 initialDeposit) external onlyOwner {
+    function init(
+        uint256 initialDeposit,
+        uint256 rewardsToken0,
+        uint256 rewardsToken1
+    ) external onlyOwner {
         if (END_STAKING_UNIX_TIME > 0) revert Staking_Already_Initialized();
 
-        uint256 rewards0 = 1_000 ether;
-        uint256 rewards1 = 1_000 ether;
-
         END_STAKING_UNIX_TIME = block.timestamp + 30 days;
-        IERC20(TOKEN0).safeTransferFrom(msg.sender, address(this), rewards0);
-        IERC20(TOKEN1).safeTransferFrom(msg.sender, address(this), rewards1);
+        IERC20(TOKEN0).safeTransferFrom(
+            msg.sender,
+            address(this),
+            rewardsToken0
+        );
+        IERC20(TOKEN1).safeTransferFrom(
+            msg.sender,
+            address(this),
+            rewardsToken1
+        );
 
         stake(initialDeposit);
     }
@@ -118,7 +132,7 @@ contract Staking is Ownable, Settings {
      * reverts with Staking_Max_Limit_Reached if the total amount staked by all users would exceed the maximum limit
      * after the current `amount` being staked is added.
      */
-    function canStake(uint256 amount) internal view {
+    function canStake(uint256 amount) private view returns (bool) {
         if (END_STAKING_UNIX_TIME == 0) revert Staking_Not_Initialized();
 
         if (block.timestamp > END_STAKING_UNIX_TIME) {
@@ -129,6 +143,8 @@ contract Staking is Ownable, Settings {
 
         if (totalStaked + amount > MAX_ALLOWED_TO_STAKE)
             revert Staking_Max_Limit_Reached();
+
+        return true;
     }
 
     /**
@@ -173,10 +189,11 @@ contract Staking is Ownable, Settings {
      * @notice Emits a StakedWithdrawed event on successful withdrawal.
      */
     function withdraw(uint256 amount) external {
+        if (amount == 0) revert Staking_Withdraw_Amount_Cannot_Be_Zero();
+
         UserInfo storage userInfo = stakingDetails[msg.sender];
         uint256 balance = userInfo.stakingBalance;
 
-        if (amount == 0) revert Staking_Withdraw_Amount_Cannot_Be_Zero();
         if (balance == 0) revert Staking_No_Balance_Staked();
         if (amount > balance) revert Staking_Amount_Exceeds_Balance();
 
@@ -198,7 +215,7 @@ contract Staking is Ownable, Settings {
         collectedFees += fee;
         lastUpdate = block.timestamp;
 
-        IERC20(TOKEN0).safeTransfer(msg.sender, amount - fee);
+        IERC20(TOKEN0).safeTransfer(msg.sender, amount.sub(fee));
 
         emit StakedWithdrawed(msg.sender, amount);
     }
@@ -243,11 +260,12 @@ contract Staking is Ownable, Settings {
             YieldType.TOKEN0
         );
 
-        if (userToken0Rewards == 0) revert Staking_No_Rewards_Available();
+        if (userToken0Rewards > 0) {
+            updateAccumulators(userInfo, YieldType.TOKEN0);
 
-        updateAccumulators(userInfo, YieldType.TOKEN0);
+            IERC20(TOKEN0).safeTransfer(msg.sender, userToken0Rewards);
+        }
 
-        IERC20(TOKEN0).safeTransfer(msg.sender, userToken0Rewards);
         emit RewardsClaimed(block.timestamp, msg.sender, userToken0Rewards, 0);
     }
 
@@ -263,11 +281,12 @@ contract Staking is Ownable, Settings {
             YieldType.TOKEN1
         );
 
-        if (userToken1Rewards == 0) revert Staking_No_Rewards_Available();
+        if (userToken1Rewards > 0) {
+            updateAccumulators(userInfo, YieldType.TOKEN1);
 
-        updateAccumulators(userInfo, YieldType.TOKEN1);
+            IERC20(TOKEN1).safeTransfer(msg.sender, userToken1Rewards);
+        }
 
-        IERC20(TOKEN0).safeTransfer(msg.sender, userToken1Rewards);
         emit RewardsClaimed(block.timestamp, msg.sender, 0, userToken1Rewards);
     }
 
@@ -281,14 +300,14 @@ contract Staking is Ownable, Settings {
     function compoundToken0Rewards(UserInfo storage userInfo) internal {
         uint256 userToken0Rewards = calculateReward(
             msg.sender,
-            YieldType.TOKEN1
+            YieldType.TOKEN0
         );
 
-        if (userToken0Rewards == 0) revert Staking_No_Rewards_Available();
+        if (canStake(userToken0Rewards)) {
+            userInfo.stakingBalance += userToken0Rewards;
 
-        userInfo.stakingBalance += userToken0Rewards;
-
-        updateAccumulators(userInfo, YieldType.TOKEN0);
+            updateAccumulators(userInfo, YieldType.TOKEN0);
+        }
 
         emit RewardsCompounded(block.timestamp, msg.sender, userToken0Rewards);
     }
@@ -324,10 +343,6 @@ contract Staking is Ownable, Settings {
         }
 
         userInfo.lastActionTimestamp = block.timestamp;
-
-        // if (block.timestamp <= END_STAKING_UNIX_TIME) {
-        //     lastUpdate = block.timestamp;
-        // }
     }
 
     /**
@@ -377,9 +392,6 @@ contract Staking is Ownable, Settings {
             ? userInfo.token0Accumulator
             : userInfo.token1Accumulator;
 
-        // console.log(userInfo.stakingBalance);
-        // console.log(acc, userAcc);
-
         return ((userInfo.stakingBalance * (acc - userAcc)) /
             (yieldType == YieldType.TOKEN0 ? 1e24 : 1e6));
     }
@@ -396,6 +408,7 @@ contract Staking is Ownable, Settings {
     }
 
     /**
+     * @notice This function needs to be used with caution in an extremely bad scenario.
      * @dev Allows the contract owner to withdraw all the staked tokens in an emergency situation.
      * The function will transfer all the staked tokens held by the contract to the owner's address.
      * This function should only be used in emergency situations and can lead to a loss of rewards for stakers.

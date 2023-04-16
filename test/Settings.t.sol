@@ -6,22 +6,13 @@ import "../src/Settings.sol";
 
 contract SettingsTest is Test {
     Settings public settings;
-
     address internal bob;
-    address internal alice;
-    address internal john;
 
     function setUp() public {
         settings = new Settings();
 
         bob = vm.addr(3);
         vm.label(bob, "bob");
-
-        alice = vm.addr(5);
-        vm.label(alice, "alice");
-
-        john = vm.addr(6);
-        vm.label(john, "john");
     }
 
     function test_RevertWhenTryUpdateRewardsBefore24h() public {

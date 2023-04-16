@@ -8,6 +8,8 @@ import "@openzeppelin/contracts/interfaces/IERC20.sol";
 import "forge-std/StdStorage.sol";
 
 contract StakingTest is Test {
+    using SafeMath for uint256;
+
     ERC20 public token0;
     ERC20 public token1;
     Staking public staking;
@@ -51,7 +53,7 @@ contract StakingTest is Test {
         token0 = ERC20(TOKEN0_ADDRESS);
         token1 = ERC20(TOKEN1_ADDRESS);
 
-        staking = new Staking();
+        staking = new Staking(TOKEN0_ADDRESS, TOKEN1_ADDRESS);
 
         bob = vm.addr(3);
         vm.label(bob, "bob");
@@ -72,7 +74,7 @@ contract StakingTest is Test {
         token1.approve(address(staking), 5_000 ether);
         deal(TOKEN1_ADDRESS, staking.owner(), 2_000 ether);
 
-        staking.init(1_000 ether);
+        staking.init(1_000 ether, 1_000 ether, 1_000 ether);
     }
 
     function bobStakes() public {
@@ -86,6 +88,24 @@ contract StakingTest is Test {
     function bobWithdraw() public {
         vm.startPrank(bob);
         staking.withdraw(500 ether);
+        vm.stopPrank();
+    }
+
+    function bobClaimRewardsWithNoOptions() public {
+        vm.startPrank(bob);
+        staking.claimRewards(false, false, false);
+        vm.stopPrank();
+    }
+
+    function bobClaimToken0AndToken1Rewards() public {
+        vm.startPrank(bob);
+        staking.claimRewards(true, true, false);
+        vm.stopPrank();
+    }
+
+    function bobClaimToken0Rewards() public {
+        vm.startPrank(bob);
+        staking.claimRewards(true, false, false);
         vm.stopPrank();
     }
 
@@ -118,6 +138,12 @@ contract StakingTest is Test {
         deal(TOKEN0_ADDRESS, john, 1_000 ether);
         staking.stake(700 ether);
 
+        vm.stopPrank();
+    }
+
+    function johnCompoundRewards() public {
+        vm.startPrank(john);
+        staking.claimRewards(false, false, true);
         vm.stopPrank();
     }
 
@@ -155,7 +181,7 @@ contract StakingTest is Test {
     function test_InitRevertsWhenNotOwner() public {
         vm.prank(bob);
         vm.expectRevert("Ownable: caller is not the owner");
-        staking.init(0);
+        staking.init(0, 0, 0);
     }
 
     function test_InitStaking() public {
@@ -169,7 +195,7 @@ contract StakingTest is Test {
     function test_InitRevertsWhenAlreadyInitialized() public {
         init();
         vm.expectRevert(Staking_Already_Initialized.selector);
-        staking.init(0);
+        staking.init(0, 0, 0);
     }
 
     // ======== STAKE TESTS ======== //
@@ -267,6 +293,175 @@ contract StakingTest is Test {
         assertTrue(token1Rewards > 0);
     }
 
+    // ======== CLAIM REWARDS ======== //
+
+    function test_CannotClaimWhenHasOptionsSelected() public {
+        init();
+        bobStakes();
+
+        vm.expectRevert(Staking_No_Rewards_Options_Selected.selector);
+        bobClaimRewardsWithNoOptions();
+    }
+
+    function test_BobClaimsZeroRewards() public {
+        init();
+        bobStakes();
+
+        vm.expectEmit(true, true, true, true);
+        emit RewardsClaimed(block.timestamp, bob, 0, 0);
+        bobClaimToken0AndToken1Rewards();
+    }
+
+    function test_BobClaimsBothRewards() public {
+        init();
+
+        vm.warp(block.timestamp + 1 days);
+        johnStakes();
+
+        vm.warp(block.timestamp + 1 days);
+        bobStakes();
+
+        vm.warp(block.timestamp + 5 days);
+
+        uint256 bobToken0BalanceBefore = token0.balanceOf(bob);
+        uint256 bobToken1BalanceBefore = token1.balanceOf(bob);
+
+        uint256 token0RewardsBefore = staking.calculateReward(
+            bob,
+            YieldType.TOKEN0
+        );
+        uint256 token1RewardsBefore = staking.calculateReward(
+            bob,
+            YieldType.TOKEN1
+        );
+
+        vm.expectEmit(true, true, true, true);
+        emit RewardsClaimed(block.timestamp, bob, token0RewardsBefore, 0);
+        emit RewardsClaimed(block.timestamp, bob, 0, token1RewardsBefore);
+
+        bobClaimToken0AndToken1Rewards();
+
+        uint256 bobToken0BalanceAfter = token0.balanceOf(bob);
+        uint256 bobToken1BalanceAfter = token1.balanceOf(bob);
+
+        uint256 token0RewardsAfter = staking.calculateReward(
+            bob,
+            YieldType.TOKEN0
+        );
+        uint256 token1RewardsAfter = staking.calculateReward(
+            bob,
+            YieldType.TOKEN1
+        );
+
+        assertEq(
+            bobToken0BalanceBefore + token0RewardsBefore,
+            bobToken0BalanceAfter
+        );
+        assertEq(token0RewardsAfter, 0);
+
+        assertEq(
+            bobToken1BalanceBefore + token1RewardsBefore,
+            bobToken1BalanceAfter
+        );
+        assertEq(token1RewardsAfter, 0);
+    }
+
+    // function test_BobCanClaimHisRewardsAfterStakingPeriodEnds() public {
+    //     init();
+
+    //     vm.warp(block.timestamp + 1 days);
+    //     bobStakes();
+
+    //     vm.warp(block.timestamp + staking.END_STAKING_UNIX_TIME() + 2 days);
+
+    //     uint256 bobToken0BalanceBefore = token0.balanceOf(bob);
+    //     uint256 bobToken1BalanceBefore = token1.balanceOf(bob);
+
+    //     uint256 token0RewardsBefore = staking.calculateReward(
+    //         bob,
+    //         YieldType.TOKEN0
+    //     );
+    //     uint256 token1RewardsBefore = staking.calculateReward(
+    //         bob,
+    //         YieldType.TOKEN1
+    //     );
+
+    //     vm.expectEmit(true, true, true, true);
+    //     emit RewardsClaimed(block.timestamp, bob, token0RewardsBefore, 0);
+    //     emit RewardsClaimed(block.timestamp, bob, 0, token1RewardsBefore);
+
+    //     bobClaimToken0AndToken1Rewards();
+
+    //     uint256 bobToken0BalanceAfter = token0.balanceOf(bob);
+    //     uint256 bobToken1BalanceAfter = token1.balanceOf(bob);
+
+    //     uint256 token0RewardsAfter = staking.calculateReward(
+    //         bob,
+    //         YieldType.TOKEN0
+    //     );
+    //     uint256 token1RewardsAfter = staking.calculateReward(
+    //         bob,
+    //         YieldType.TOKEN1
+    //     );
+
+    //     // console.log(
+    //     //     bobToken0BalanceBefore,
+    //     //     token0RewardsBefore,
+    //     //     bobToken0BalanceAfter
+    //     // );
+    //     // console.log(bobToken0BalanceBefore + token0RewardsBefore);
+    //     // console.log(bobToken0BalanceAfter);
+
+    //     assertEq(
+    //         bobToken0BalanceBefore + token0RewardsBefore,
+    //         bobToken0BalanceAfter
+    //     );
+    //     // assertEq(token0RewardsAfter, 0);
+
+    //     assertEq(
+    //         bobToken1BalanceBefore + token1RewardsBefore,
+    //         bobToken1BalanceAfter
+    //     );
+    //     // assertEq(token1RewardsAfter, 0);
+
+    //     // console.log(token0RewardsBefore, token1RewardsBefore);
+    //     // console.log(token0RewardsBefore, token1RewardsAfter);
+    // }
+
+    function test_JohnCompoundRewards() public {
+        init();
+
+        vm.warp(block.timestamp + 1 days);
+        johnStakes();
+
+        vm.warp(block.timestamp + 1 days);
+        bobStakes();
+
+        vm.warp(block.timestamp + 5 days);
+
+        uint256 token0RewardsBefore = staking.calculateReward(
+            john,
+            YieldType.TOKEN0
+        );
+
+        (uint256 stakedBalanceBefore, , , ) = staking.stakingDetails(john);
+
+        vm.expectEmit(true, true, true, true);
+        emit RewardsCompounded(block.timestamp, john, token0RewardsBefore);
+
+        johnCompoundRewards();
+
+        uint256 token0RewardsAfter = staking.calculateReward(
+            john,
+            YieldType.TOKEN0
+        );
+
+        (uint256 stakedBalanceAfter, , , ) = staking.stakingDetails(john);
+
+        assertEq(stakedBalanceBefore + token0RewardsBefore, stakedBalanceAfter);
+        assertEq(token0RewardsAfter, 0);
+    }
+
     // ======== WITHDRAW ======== //
 
     function test_BobPaysTaxForWithdrawEarlier() public {
@@ -287,7 +482,7 @@ contract StakingTest is Test {
         assertEq(
             token0BalanceStart +
                 balance -
-                (((balance) * staking.WITHDRAW_EARLIER_FEE()) / 100),
+                ((balance * staking.WITHDRAW_EARLIER_FEE()) / 100),
             token0BalanceEnd
         );
     }
@@ -421,4 +616,84 @@ contract StakingTest is Test {
         );
         assertEq(staking.totalStaked(), 0);
     }
+
+    // FUZZ TESTS
+
+    function testFuzz_BobStaking(uint256 amount) public {
+        init();
+
+        uint256 totalSupply = token0.totalSupply();
+        uint256 maxStakeLimit = staking.MAX_ALLOWED_TO_STAKE();
+        vm.assume(amount > 0 && amount < totalSupply && amount < maxStakeLimit);
+
+        deal(TOKEN0_ADDRESS, address(bob), amount + 10 ether);
+
+        vm.startPrank(bob);
+        token0.approve(address(staking), amount * 10);
+        staking.stake(amount);
+        vm.stopPrank();
+
+        (uint256 stakedBalance, , , ) = staking.stakingDetails(bob);
+        assertEq(stakedBalance, amount);
+    }
+
+    // function testFuzz_BobWithdraw(uint256 amount, uint256 timestamp) public {
+    //     uint256 minToStake = staking.MIN_STAKED_TO_REWARD();
+    //     uint256 maxStakeLimit = staking.MAX_ALLOWED_TO_STAKE();
+    //     uint256 withdrawLockTime = staking.WITHDRAW_EARLIER_FEE_LOCK_TIME();
+    //     uint256 maxTime = block.timestamp + withdrawLockTime;
+    //     uint256 fee = staking.WITHDRAW_EARLIER_FEE();
+    //     uint256 totalSupply = token0.totalSupply();
+    //     uint256 feeToPay = 0;
+
+    //     init();
+    //     vm.assume(
+    //         amount > 0 &&
+    //             amount < totalSupply &&
+    //             amount < maxStakeLimit &&
+    //             timestamp <= maxTime
+    //     );
+    //     // vm.assume(timestamp > block.timestamp && timestamp <= withdrawLockTime);
+
+    //     deal(TOKEN0_ADDRESS, address(bob), amount + 10 ether);
+
+    //     vm.startPrank(bob);
+
+    //     token0.approve(address(staking), amount * 10);
+    //     staking.stake(amount);
+    //     (uint256 stakedBalance, , , ) = staking.stakingDetails(bob);
+
+    //     assertEq(amount, stakedBalance);
+
+    //     if (timestamp > block.timestamp) {
+    //         vm.warp(block.timestamp + timestamp);
+    //     } else {
+    //         timestamp = block.timestamp;
+    //     }
+
+    //     assertTrue(block.timestamp <= timestamp);
+
+    //     uint256 token0BalanceBefore = token0.balanceOf(bob);
+
+    //     assertTrue(token0BalanceBefore > 0);
+
+    //     if (amount <= minToStake && timestamp < withdrawLockTime) {
+    //         feeToPay = ((amount * fee) / 100);
+    //     }
+
+    //     staking.withdraw(amount);
+
+    //     uint256 token0BalanceAfter = token0.balanceOf(bob);
+
+    //     assertEq(token0BalanceBefore + amount + feeToPay, token0BalanceAfter);
+
+    //     // assert(token0BalanceBefore < token0BalanceAfter);
+
+    //     // assertEq(
+    //     //     token0BalanceBefore.add(stakedBalance).sub(feeToPay),
+    //     //     token0BalanceAfter
+    //     // );
+
+    //     vm.stopPrank();
+    // }
 }
