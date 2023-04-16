@@ -213,7 +213,9 @@ contract Staking is Ownable, Settings {
 
         totalStaked -= amount;
         collectedFees += fee;
-        lastUpdate = block.timestamp;
+
+        if (block.timestamp <= END_STAKING_UNIX_TIME)
+            lastUpdate = block.timestamp;
 
         IERC20(TOKEN0).safeTransfer(msg.sender, amount.sub(fee));
 
@@ -245,7 +247,8 @@ contract Staking is Ownable, Settings {
         if (claimToken1) claimToken1Rewards(userInfo);
         if (compoundToken0) compoundToken0Rewards(userInfo);
 
-        lastUpdate = block.timestamp;
+        if (block.timestamp <= END_STAKING_UNIX_TIME)
+            lastUpdate = block.timestamp;
     }
 
     /**
@@ -388,10 +391,12 @@ contract Staking is Ownable, Settings {
         UserInfo memory userInfo = stakingDetails[account];
 
         uint256 acc = getNewAccumulator(yieldType);
+
         uint256 userAcc = yieldType == YieldType.TOKEN0
             ? userInfo.token0Accumulator
             : userInfo.token1Accumulator;
 
+        if (userAcc == 0) return 0;
         return ((userInfo.stakingBalance * (acc - userAcc)) /
             (yieldType == YieldType.TOKEN0 ? 1e24 : 1e6));
     }

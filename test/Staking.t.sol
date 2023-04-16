@@ -366,67 +366,56 @@ contract StakingTest is Test {
         assertEq(token1RewardsAfter, 0);
     }
 
-    // function test_BobCanClaimHisRewardsAfterStakingPeriodEnds() public {
-    //     init();
+    function test_BobCanClaimRewardsAfterStakingPeriod() public {
+        init();
 
-    //     vm.warp(block.timestamp + 1 days);
-    //     bobStakes();
+        vm.warp(block.timestamp + 1 days);
+        bobStakes();
 
-    //     vm.warp(block.timestamp + staking.END_STAKING_UNIX_TIME() + 2 days);
+        vm.warp(block.timestamp + staking.END_STAKING_UNIX_TIME() + 2 days);
 
-    //     uint256 bobToken0BalanceBefore = token0.balanceOf(bob);
-    //     uint256 bobToken1BalanceBefore = token1.balanceOf(bob);
+        uint256 bobToken0BalanceBefore = token0.balanceOf(bob);
+        uint256 bobToken1BalanceBefore = token1.balanceOf(bob);
 
-    //     uint256 token0RewardsBefore = staking.calculateReward(
-    //         bob,
-    //         YieldType.TOKEN0
-    //     );
-    //     uint256 token1RewardsBefore = staking.calculateReward(
-    //         bob,
-    //         YieldType.TOKEN1
-    //     );
+        uint256 token0RewardsBefore = staking.calculateReward(
+            bob,
+            YieldType.TOKEN0
+        );
+        uint256 token1RewardsBefore = staking.calculateReward(
+            bob,
+            YieldType.TOKEN1
+        );
 
-    //     vm.expectEmit(true, true, true, true);
-    //     emit RewardsClaimed(block.timestamp, bob, token0RewardsBefore, 0);
-    //     emit RewardsClaimed(block.timestamp, bob, 0, token1RewardsBefore);
+        vm.expectEmit(true, true, true, true);
+        emit RewardsClaimed(block.timestamp, bob, token0RewardsBefore, 0);
+        emit RewardsClaimed(block.timestamp, bob, 0, token1RewardsBefore);
 
-    //     bobClaimToken0AndToken1Rewards();
+        bobClaimToken0AndToken1Rewards();
 
-    //     uint256 bobToken0BalanceAfter = token0.balanceOf(bob);
-    //     uint256 bobToken1BalanceAfter = token1.balanceOf(bob);
+        uint256 bobToken0BalanceAfter = token0.balanceOf(bob);
+        uint256 bobToken1BalanceAfter = token1.balanceOf(bob);
 
-    //     uint256 token0RewardsAfter = staking.calculateReward(
-    //         bob,
-    //         YieldType.TOKEN0
-    //     );
-    //     uint256 token1RewardsAfter = staking.calculateReward(
-    //         bob,
-    //         YieldType.TOKEN1
-    //     );
+        uint256 token0RewardsAfter = staking.calculateReward(
+            bob,
+            YieldType.TOKEN0
+        );
+        uint256 token1RewardsAfter = staking.calculateReward(
+            bob,
+            YieldType.TOKEN1
+        );
 
-    //     // console.log(
-    //     //     bobToken0BalanceBefore,
-    //     //     token0RewardsBefore,
-    //     //     bobToken0BalanceAfter
-    //     // );
-    //     // console.log(bobToken0BalanceBefore + token0RewardsBefore);
-    //     // console.log(bobToken0BalanceAfter);
+        assertEq(
+            bobToken0BalanceBefore + token0RewardsBefore,
+            bobToken0BalanceAfter
+        );
+        assertEq(token0RewardsAfter, 0);
 
-    //     assertEq(
-    //         bobToken0BalanceBefore + token0RewardsBefore,
-    //         bobToken0BalanceAfter
-    //     );
-    //     // assertEq(token0RewardsAfter, 0);
-
-    //     assertEq(
-    //         bobToken1BalanceBefore + token1RewardsBefore,
-    //         bobToken1BalanceAfter
-    //     );
-    //     // assertEq(token1RewardsAfter, 0);
-
-    //     // console.log(token0RewardsBefore, token1RewardsBefore);
-    //     // console.log(token0RewardsBefore, token1RewardsAfter);
-    // }
+        assertEq(
+            bobToken1BalanceBefore + token1RewardsBefore,
+            bobToken1BalanceAfter
+        );
+        assertEq(token1RewardsAfter, 0);
+    }
 
     function test_JohnCompoundRewards() public {
         init();
