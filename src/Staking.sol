@@ -223,8 +223,6 @@ contract Staking is Ownable, Settings {
             YieldType.TOKEN0
         );
 
-        // console.log("token0RewardsSnapshot", userInfo.token0RewardsSnapshot);
-
         // Take snapshot of TOKEN1 rewards snapshot before update balance
         userInfo.token1RewardsSnapshot = calculateReward(
             msg.sender,
