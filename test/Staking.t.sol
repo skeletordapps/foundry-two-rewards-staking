@@ -24,8 +24,12 @@ contract StakingTest is Test {
     address internal alice;
     address internal john;
 
+    uint256 public token0RewardsToInit = 1_000 ether;
+    uint256 public token1RewardsToInit = 1_000 ether;
+
+    event RewardsAdded(uint256 token0Amount, uint256 token1Amount);
     event Staked(address indexed account, uint256 amount);
-    event StakedWithdrawed(address indexed account, uint256 amount);
+    event StakeWithdrawn(address indexed account, uint256 amount);
     event RewardsClaimed(
         uint256 timestamp,
         address indexed account,
@@ -39,6 +43,7 @@ contract StakingTest is Test {
         uint256 amount
     );
 
+    event FeesWithdrawn(uint256 amount);
     event EmergencyWithdrawnFunds(uint256 amountToken0, uint256 amountToken1);
 
     function setUp() public {
@@ -65,7 +70,9 @@ contract StakingTest is Test {
         vm.label(john, "john");
     }
 
-    // ======== HELPER FUNCTIONS ======== //
+    /*//////////////////////////////////////////////////////////////////////////
+                                    HELPER FUNCTIONS
+    //////////////////////////////////////////////////////////////////////////*/
 
     function init() public {
         token0.approve(address(staking), 5_000 ether);
@@ -74,7 +81,7 @@ contract StakingTest is Test {
         token1.approve(address(staking), 5_000 ether);
         deal(TOKEN1_ADDRESS, staking.owner(), 2_000 ether);
 
-        staking.init(1_000 ether, 1_000 ether, 1_000 ether);
+        staking.init(1_000 ether, token0RewardsToInit, token1RewardsToInit);
 
         // staking.updateStakingPeriod(365 days);
         // vm.warp(block.timestamp + staking.SETTINGS_LOCK_TIME());
@@ -106,12 +113,6 @@ contract StakingTest is Test {
         staking.claimRewards(true, true, false);
         vm.stopPrank();
     }
-
-    // function bobClaimToken0Rewards() public {
-    //     vm.startPrank(bob);
-    //     staking.claimRewards(true, false, false);
-    //     vm.stopPrank();
-    // }
 
     function aliceStakes() public {
         vm.startPrank(alice);
@@ -175,7 +176,9 @@ contract StakingTest is Test {
         johnWithdrawal();
     }
 
-    // ======== INIT TESTS ======== //
+    /*//////////////////////////////////////////////////////////////////////////
+                                    INIT TESTS
+    //////////////////////////////////////////////////////////////////////////*/
 
     function test_SuccessfulyConstructed() public {
         assertEq(staking.TOKEN0(), address(token0));
@@ -189,7 +192,11 @@ contract StakingTest is Test {
     }
 
     function test_InitStaking() public {
+        vm.expectEmit(true, true, true, true);
+        emit RewardsAdded(token0RewardsToInit, token1RewardsToInit);
+
         init();
+
         assertTrue(staking.END_STAKING_UNIX_TIME() >= 30 days);
         assertEq(staking.totalStaked(), 1_000 ether);
     }
@@ -200,7 +207,9 @@ contract StakingTest is Test {
         staking.init(0, 0, 0);
     }
 
-    // ======== STAKE TESTS ======== //
+    /*//////////////////////////////////////////////////////////////////////////
+                                    STAKE TESTS
+    //////////////////////////////////////////////////////////////////////////*/
 
     function test_StakeRevertsWhenNotInitialized() public {
         vm.expectRevert(Staking_Not_Initialized.selector);
@@ -239,9 +248,9 @@ contract StakingTest is Test {
         emit Staked(bob, 500 ether);
 
         uint256 totalStakedStart = staking.totalStaked();
-        (uint256 startBalance, , , ) = staking.stakingDetails(bob);
+        (uint256 startBalance, , , , , ) = staking.stakingDetails(bob);
         bobStakes();
-        (uint256 endBalance, , , ) = staking.stakingDetails(bob);
+        (uint256 endBalance, , , , , ) = staking.stakingDetails(bob);
         uint256 totalStakedEnd = staking.totalStaked();
 
         assertTrue(endBalance > startBalance);
@@ -249,7 +258,9 @@ contract StakingTest is Test {
         assertEq(totalStakedStart + 500 ether, totalStakedEnd);
     }
 
-    // ======== CHECKING REWARDS ======== //
+    /*//////////////////////////////////////////////////////////////////////////
+                            CHECKING REWARDS TESTS
+    //////////////////////////////////////////////////////////////////////////*/
 
     function test_AliceCannotAccumulateRewards() public {
         init();
@@ -259,6 +270,8 @@ contract StakingTest is Test {
             uint256 balance,
             uint256 token0Accumulator,
             uint256 token1Accumulator,
+            ,
+            ,
 
         ) = staking.stakingDetails(alice);
 
@@ -278,6 +291,8 @@ contract StakingTest is Test {
             uint256 balance,
             uint256 token0Accumulator,
             uint256 token1Accumulator,
+            ,
+            ,
 
         ) = staking.stakingDetails(john);
 
@@ -295,7 +310,9 @@ contract StakingTest is Test {
         assertTrue(token1Rewards > 0);
     }
 
-    // ======== CLAIM REWARDS ======== //
+    /*//////////////////////////////////////////////////////////////////////////
+                                CLAIM REWARDS TESTS
+    //////////////////////////////////////////////////////////////////////////*/
 
     function test_CannotClaimWhenHasOptionsSelected() public {
         init();
@@ -433,7 +450,7 @@ contract StakingTest is Test {
             YieldType.TOKEN0
         );
 
-        (uint256 stakedBalanceBefore, , , ) = staking.stakingDetails(john);
+        (uint256 stakedBalanceBefore, , , , , ) = staking.stakingDetails(john);
 
         vm.expectEmit(true, true, true, true);
         emit RewardsCompounded(block.timestamp, john, token0RewardsBefore);
@@ -445,19 +462,21 @@ contract StakingTest is Test {
             YieldType.TOKEN0
         );
 
-        (uint256 stakedBalanceAfter, , , ) = staking.stakingDetails(john);
+        (uint256 stakedBalanceAfter, , , , , ) = staking.stakingDetails(john);
 
         assertEq(stakedBalanceBefore + token0RewardsBefore, stakedBalanceAfter);
         assertEq(token0RewardsAfter, 0);
     }
 
-    // ======== WITHDRAW ======== //
+    /*//////////////////////////////////////////////////////////////////////////
+                                WITHDRAW TESTS
+    //////////////////////////////////////////////////////////////////////////*/
 
     function test_BobPaysTaxForWithdrawEarlier() public {
         init();
         bobStakes();
 
-        (uint256 balance, , , ) = staking.stakingDetails(bob);
+        (uint256 balance, , , , , ) = staking.stakingDetails(bob);
         assertEq(balance, 500 ether);
 
         uint256 token0BalanceStart = token0.balanceOf(bob);
@@ -504,7 +523,7 @@ contract StakingTest is Test {
         bobStakes();
 
         uint256 totalStakedStart = staking.totalStaked();
-        (uint256 balance, , , ) = staking.stakingDetails(bob);
+        (uint256 balance, , , , , ) = staking.stakingDetails(bob);
         assertEq(balance, 500 ether);
 
         uint256 token0BalanceStart = token0.balanceOf(bob);
@@ -512,7 +531,7 @@ contract StakingTest is Test {
         vm.warp(block.timestamp + staking.WITHDRAW_EARLIER_FEE_LOCK_TIME());
 
         vm.expectEmit(true, true, true, true);
-        emit StakedWithdrawed(bob, 500 ether);
+        emit StakeWithdrawn(bob, 500 ether);
 
         bobWithdrawal();
 
@@ -530,18 +549,90 @@ contract StakingTest is Test {
         vm.warp(block.timestamp + staking.END_STAKING_UNIX_TIME() + 2 days);
 
         uint256 token0BalanceBefore = token0.balanceOf(john);
-        (uint256 stakedBefore, , , ) = staking.stakingDetails(john);
+        (uint256 stakedBefore, , , , , ) = staking.stakingDetails(john);
 
         johnWithdrawal();
 
         uint256 token0BalanceAfter = token0.balanceOf(john);
-        (uint256 stakedAfter, , , ) = staking.stakingDetails(john);
+        (uint256 stakedAfter, , , , , ) = staking.stakingDetails(john);
 
         assertEq(token0BalanceBefore + stakedBefore, token0BalanceAfter);
         assertEq(stakedAfter, 0);
     }
 
-    // ======== COLLECTING FEES ======== //
+    /*//////////////////////////////////////////////////////////////////////////
+                        CLAIM REWARDS AFTER WITHDRAWAL TESTS
+    //////////////////////////////////////////////////////////////////////////*/
+
+    function testBobClaimRewardsAfterWithdrawal() public {
+        init();
+
+        vm.warp(block.timestamp + 10 days);
+
+        bobStakes();
+
+        vm.warp(block.timestamp + 10 days);
+
+        uint256 token0Rewards = staking.calculateReward(bob, YieldType.TOKEN0);
+        uint256 token1Rewards = staking.calculateReward(bob, YieldType.TOKEN1);
+
+        bobWithdrawal();
+
+        uint256 token0RewardsAfter = staking.calculateReward(
+            bob,
+            YieldType.TOKEN0
+        );
+
+        uint256 token1RewardsAfter = staking.calculateReward(
+            bob,
+            YieldType.TOKEN1
+        );
+
+        assertEq(token0Rewards, token0RewardsAfter);
+        assertEq(token1Rewards, token1RewardsAfter);
+
+        uint256 token0Balance = token0.balanceOf(bob);
+        uint256 token1Balance = token1.balanceOf(bob);
+
+        bobClaimsToken0AndToken1Rewards();
+
+        uint256 token0BalanceAfter = token0.balanceOf(bob);
+        uint256 token1BalanceAfter = token1.balanceOf(bob);
+
+        assertEq(token0Balance + token0RewardsAfter, token0BalanceAfter);
+        assertEq(token1Balance + token1RewardsAfter, token1BalanceAfter);
+    }
+
+    function testJohnCompoundRewardsAfterWithdrawal() public {
+        init();
+        vm.warp(block.timestamp + 10 days);
+        johnStakes();
+
+        vm.warp(block.timestamp + 100 days);
+
+        uint256 token0Rewards = staking.calculateReward(john, YieldType.TOKEN0);
+
+        johnWithdrawal();
+
+        uint256 token0RewardsAfter = staking.calculateReward(
+            john,
+            YieldType.TOKEN0
+        );
+
+        assertEq(token0Rewards, token0RewardsAfter);
+
+        (uint256 stakingBalance, , , , , ) = staking.stakingDetails(john);
+
+        johnCompoundsRewards();
+
+        (uint256 stakingBalanceAfter, , , , , ) = staking.stakingDetails(john);
+
+        assertEq(stakingBalance + token0RewardsAfter, stakingBalanceAfter);
+    }
+
+    /*//////////////////////////////////////////////////////////////////////////
+                                COLLECTING FEES TESTS
+    //////////////////////////////////////////////////////////////////////////*/
 
     function test_EarlierWithdrawalsGeneratesFees() public {
         init();
@@ -571,6 +662,9 @@ contract StakingTest is Test {
         uint256 contractFeesStart = staking.collectedFees();
         uint256 ownerToken0BalanceStart = token0.balanceOf(staking.owner());
 
+        vm.expectEmit(true, true, true, true);
+        emit FeesWithdrawn(contractFeesStart);
+
         staking.collectFees();
 
         uint256 contractFeesEnd = staking.collectedFees();
@@ -581,7 +675,9 @@ contract StakingTest is Test {
         assertEq(ownerToken0BalanceEnd, contractFeesStart);
     }
 
-    // ======== EMERGENCY WITHDRAW ======== //
+    /*//////////////////////////////////////////////////////////////////////////
+                            EMERGENCY WITHDRAW TESTS
+    //////////////////////////////////////////////////////////////////////////*/
 
     function test_BobCannotUseEmergencyWithdraw() public {
         vm.startPrank(bob);
@@ -624,7 +720,42 @@ contract StakingTest is Test {
         assertEq(staking.totalStaked(), 0);
     }
 
-    // FUZZ TESTS
+    /*//////////////////////////////////////////////////////////////////////////
+                                    ADD REWARDS TESTS
+    //////////////////////////////////////////////////////////////////////////*/
+
+    function test_addRewards() public {
+        uint256 token0Amount = 100 ether;
+        uint256 token1Amount = 200 ether;
+
+        // Approve the contract to spend the required amount of tokens
+        IERC20(TOKEN0_ADDRESS).approve(address(this), token0Amount);
+        IERC20(TOKEN1_ADDRESS).approve(address(this), token1Amount);
+        IERC20(TOKEN0_ADDRESS).approve(address(staking), token0Amount);
+        IERC20(TOKEN1_ADDRESS).approve(address(staking), token1Amount);
+
+        deal(TOKEN0_ADDRESS, address(this), token0Amount);
+        deal(TOKEN1_ADDRESS, address(this), token1Amount);
+        deal(TOKEN0_ADDRESS, address(staking), token0Amount);
+        deal(TOKEN1_ADDRESS, address(staking), token1Amount);
+
+        uint256 token0Balance = token0.balanceOf(address(staking));
+        uint256 token1Balance = token1.balanceOf(address(staking));
+
+        // Call the `addRewards` function
+        staking.addRewards(token0Amount, token1Amount);
+
+        uint256 token0BalanceAfter = token0.balanceOf(address(staking));
+        uint256 token1BalanceAfter = token1.balanceOf(address(staking));
+
+        // Verify that the rewards have been added
+        assert(token0Balance + token0Amount == token0BalanceAfter);
+        assert(token1Balance + token1Amount == token1BalanceAfter);
+    }
+
+    /*//////////////////////////////////////////////////////////////////////////
+                                    FUZZ TESTS
+    //////////////////////////////////////////////////////////////////////////*/
 
     function testFuzz_BobStaking(uint256 amount) public {
         init();
@@ -640,7 +771,7 @@ contract StakingTest is Test {
         staking.stake(amount);
         vm.stopPrank();
 
-        (uint256 stakedBalance, , , ) = staking.stakingDetails(bob);
+        (uint256 stakedBalance, , , , , ) = staking.stakingDetails(bob);
         assertEq(stakedBalance, amount);
     }
 
@@ -661,7 +792,7 @@ contract StakingTest is Test {
         staking.stake(amount);
         vm.stopPrank();
 
-        (uint256 stakedBalance, , , ) = staking.stakingDetails(bob);
+        (uint256 stakedBalance, , , , , ) = staking.stakingDetails(bob);
 
         assertEq(amount, stakedBalance);
 
@@ -679,7 +810,7 @@ contract StakingTest is Test {
 
         staking.withdraw(amount);
 
-        (uint256 stakedBalanceAfter, , , ) = staking.stakingDetails(bob);
+        (uint256 stakedBalanceAfter, , , , , ) = staking.stakingDetails(bob);
 
         vm.stopPrank();
 

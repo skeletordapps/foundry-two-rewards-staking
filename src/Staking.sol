@@ -28,7 +28,7 @@ enum YieldType {
 /**
  * @title Staking contract
  * @author 0xTheL
- * @notice Contract for staking tokens and earning rewards
+ * @notice Contract for staking tokens and earning rewards in 2 different tokens.
  * @dev This contract allows users to stake tokens and earn rewards over a period of time.
  *      The contract owner can set the reward rate and duration of the staking period.
  */
@@ -43,10 +43,15 @@ contract Staking is Ownable, Settings {
         uint256 token0Accumulator;
         uint256 token1Accumulator;
         uint256 lastActionTimestamp;
+        uint256 token0RewardsSnapshot;
+        uint256 token1RewardsSnapshot;
     }
 
     address public TOKEN0;
     address public TOKEN1;
+
+    uint256 public totalRewardsInToken0;
+    uint256 public totalRewardsInToken1;
 
     uint256 public token0Accumulator;
     uint256 public token1Accumulator;
@@ -58,9 +63,9 @@ contract Staking is Ownable, Settings {
     mapping(address => UserInfo) public stakingDetails;
 
     // Events
-
+    event RewardsAdded(uint256 token0Amount, uint256 token1Amount);
     event Staked(address indexed account, uint256 amount);
-    event StakedWithdrawed(address indexed account, uint256 amount);
+    event StakeWithdrawn(address indexed account, uint256 amount);
     event RewardsClaimed(
         uint256 timestamp,
         address indexed account,
@@ -74,6 +79,7 @@ contract Staking is Ownable, Settings {
         uint256 amount
     );
 
+    event FeesWithdrawn(uint256 amount);
     event EmergencyWithdrawnFunds(uint256 amountToken0, uint256 amountToken1);
 
     /**
@@ -108,6 +114,9 @@ contract Staking is Ownable, Settings {
         if (END_STAKING_UNIX_TIME > 0) revert Staking_Already_Initialized();
 
         END_STAKING_UNIX_TIME = block.timestamp + (365 days * 3);
+        totalRewardsInToken0 = rewardsToken0;
+        totalRewardsInToken1 = rewardsToken1;
+
         IERC20(TOKEN0).safeTransferFrom(
             msg.sender,
             address(this),
@@ -118,6 +127,8 @@ contract Staking is Ownable, Settings {
             address(this),
             rewardsToken1
         );
+
+        emit RewardsAdded(rewardsToken0, rewardsToken1);
 
         stake(initialDeposit);
     }
@@ -186,7 +197,7 @@ contract Staking is Ownable, Settings {
      * @notice A withdrawal fee may apply if the tokens are withdrawn before the WITHDRAW_EARLIER_FEE_LOCK_TIME has passed.
      * @notice If the amount to withdraw exceeds the available balance, the function will revert.
      * @notice If the amount to withdraw is zero, the function will revert.
-     * @notice Emits a StakedWithdrawed event on successful withdrawal.
+     * @notice Emits a StakeWithdrawn event on successful withdrawal.
      */
     function withdraw(uint256 amount) external {
         if (amount == 0) revert Staking_Withdraw_Amount_Cannot_Be_Zero();
@@ -204,8 +215,21 @@ contract Staking is Ownable, Settings {
             userInfo.lastActionTimestamp + WITHDRAW_EARLIER_FEE_LOCK_TIME
         ) {
             fee = amount.mul(WITHDRAW_EARLIER_FEE).div(100);
-            console.log("contract fee to pay: ", fee);
         }
+
+        // Take snapshot of TOKEN0 rewards before update balance
+        userInfo.token0RewardsSnapshot = calculateReward(
+            msg.sender,
+            YieldType.TOKEN0
+        );
+
+        // console.log("token0RewardsSnapshot", userInfo.token0RewardsSnapshot);
+
+        // Take snapshot of TOKEN1 rewards snapshot before update balance
+        userInfo.token1RewardsSnapshot = calculateReward(
+            msg.sender,
+            YieldType.TOKEN1
+        );
 
         userInfo.stakingBalance -= amount;
 
@@ -220,7 +244,7 @@ contract Staking is Ownable, Settings {
 
         IERC20(TOKEN0).safeTransfer(msg.sender, amount.sub(fee));
 
-        emit StakedWithdrawed(msg.sender, amount);
+        emit StakeWithdrawn(msg.sender, amount);
     }
 
     /**
@@ -263,8 +287,12 @@ contract Staking is Ownable, Settings {
             msg.sender,
             YieldType.TOKEN0
         );
+        userInfo.token0RewardsSnapshot = 0;
 
-        if (userToken0Rewards > 0) {
+        if (
+            userToken0Rewards > 0 && totalRewardsInToken0 >= userToken0Rewards
+        ) {
+            totalRewardsInToken0 -= userToken0Rewards;
             updateAccumulators(userInfo, YieldType.TOKEN0);
 
             IERC20(TOKEN0).safeTransfer(msg.sender, userToken0Rewards);
@@ -284,8 +312,12 @@ contract Staking is Ownable, Settings {
             msg.sender,
             YieldType.TOKEN1
         );
+        userInfo.token1RewardsSnapshot = 0;
 
-        if (userToken1Rewards > 0) {
+        if (
+            userToken1Rewards > 0 && totalRewardsInToken1 >= userToken1Rewards
+        ) {
+            totalRewardsInToken1 -= userToken1Rewards;
             updateAccumulators(userInfo, YieldType.TOKEN1);
 
             IERC20(TOKEN1).safeTransfer(msg.sender, userToken1Rewards);
@@ -306,9 +338,14 @@ contract Staking is Ownable, Settings {
             msg.sender,
             YieldType.TOKEN0
         );
+        userInfo.token0RewardsSnapshot = 0;
 
-        if (canStake(userToken0Rewards)) {
+        if (
+            canStake(userToken0Rewards) &&
+            totalRewardsInToken0 >= userToken0Rewards
+        ) {
             userInfo.stakingBalance += userToken0Rewards;
+            totalRewardsInToken0 -= userToken0Rewards;
 
             updateAccumulators(userInfo, YieldType.TOKEN0);
         }
@@ -391,6 +428,12 @@ contract Staking is Ownable, Settings {
     ) public view returns (uint256) {
         UserInfo memory userInfo = stakingDetails[account];
 
+        if (userInfo.stakingBalance == 0)
+            return
+                yieldType == YieldType.TOKEN0
+                    ? userInfo.token0RewardsSnapshot
+                    : userInfo.token1RewardsSnapshot;
+
         uint256 acc = getNewAccumulator(yieldType);
 
         uint256 userAcc = yieldType == YieldType.TOKEN0
@@ -411,6 +454,39 @@ contract Staking is Ownable, Settings {
         collectedFees = 0;
 
         IERC20(TOKEN0).safeTransfer(owner(), fees);
+
+        emit FeesWithdrawn(fees);
+    }
+
+    /**
+     * @dev Adds rewards to the contract.
+     *
+     * Requirements:
+     * - `token0Amount` and `token1Amount` must be non-zero.
+     *
+     * @param token0Amount The amount of token0 to add as rewards.
+     * @param token1Amount The amount of token1 to add as rewards.
+     */
+    function addRewards(uint256 token0Amount, uint256 token1Amount) external {
+        if (token0Amount > 0) {
+            IERC20(TOKEN0).safeTransferFrom(
+                msg.sender,
+                address(this),
+                token0Amount
+            );
+            totalRewardsInToken0 = totalRewardsInToken0.add(token0Amount);
+        }
+
+        if (token1Amount > 0) {
+            IERC20(TOKEN1).safeTransferFrom(
+                msg.sender,
+                address(this),
+                token1Amount
+            );
+            totalRewardsInToken1 = totalRewardsInToken1.add(token1Amount);
+        }
+
+        emit RewardsAdded(token0Amount, token1Amount);
     }
 
     /**

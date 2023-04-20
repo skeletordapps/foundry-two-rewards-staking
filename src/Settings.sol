@@ -10,7 +10,7 @@ contract Settings is Ownable {
     uint256 public constant MAX_ALLOWED_TO_STAKE = 100_000_000 ether;
 
     /// THE LOCK TIME TO UPDATES ANY CONFIG
-    uint256 public constant SETTINGS_MIN_LOCK_TIME = 1 hours;
+    uint256 public constant SETTINGS_MIN_LOCK_TIME = 0 hours;
     uint256 public constant SETTINGS_MAX_LOCK_TIME = 24 hours;
     uint256 public SETTINGS_LOCK_TIME = 1 hours;
     uint256 public NEW_SETTINGS_LOCK_TIME = 0 hours;
