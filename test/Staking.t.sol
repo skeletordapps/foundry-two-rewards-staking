@@ -47,7 +47,7 @@ contract StakingTest is Test, IStaking {
     event FeesWithdrawn(uint256 amount);
     event EmergencyWithdrawnFunds(uint256 amountToken0, uint256 amountToken1);
 
-    function setUp() public {
+    function setUp() public virtual {
         ARBITRUM_RPC_URL = vm.envString("ARBITRUM_RPC_URL");
 
         TOKEN0_ADDRESS = vm.envAddress("LEVI_CONTRACT_ADDRESS");

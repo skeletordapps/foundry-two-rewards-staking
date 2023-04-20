@@ -9,6 +9,11 @@ import {UtilsTest} from "../utils/utils.t.sol";
 //////////////////////////////////////////////////////////////////////////*/
 
 contract CollectFeesTest is StakingTest, UtilsTest {
+    function setUp() public override {
+        super.setUp();
+        init();
+    }
+
     function test_BobCannotUseEmergencyWithdraw() public {
         vm.startPrank(bob);
         vm.expectRevert("Ownable: caller is not the owner");
@@ -17,7 +22,6 @@ contract CollectFeesTest is StakingTest, UtilsTest {
     }
 
     function test_OwnerCanUseEmergencyWithdraw() public {
-        init();
         bobStakes();
         aliceStakes();
 

@@ -9,8 +9,12 @@ import {UtilsTest} from "../utils/utils.t.sol";
 //////////////////////////////////////////////////////////////////////////*/
 
 contract CheckRewardsTest is StakingTest, UtilsTest {
-    function test_AliceCannotAccumulateRewards() public {
+    function setUp() public override {
+        super.setUp();
         init();
+    }
+
+    function test_AliceCannotAccumulateRewards() public {
         aliceStakes();
 
         (
@@ -29,7 +33,6 @@ contract CheckRewardsTest is StakingTest, UtilsTest {
     }
 
     function test_JonhStartsAccumulatingRewards() public {
-        init();
         vm.warp(block.timestamp + 2 days);
 
         johnStakes();

@@ -9,9 +9,12 @@ import {UtilsTest} from "../utils/utils.t.sol";
 //////////////////////////////////////////////////////////////////////////*/
 
 contract CollectFeesTest is StakingTest, UtilsTest {
-    function test_EarlierWithdrawalsGeneratesFees() public {
+    function setUp() public override {
+        super.setUp();
         init();
+    }
 
+    function test_EarlierWithdrawalsGeneratesFees() public {
         uint256 collectedFeesStart = staking.collectedFees();
         generateFeesFromEarlierWithdrawals();
         uint256 collectedFeesEnd = staking.collectedFees();
@@ -20,8 +23,6 @@ contract CollectFeesTest is StakingTest, UtilsTest {
     }
 
     function test_BobCannotClaimCollectedFees() public {
-        init();
-
         generateFeesFromEarlierWithdrawals();
 
         vm.startPrank(bob);
@@ -30,8 +31,6 @@ contract CollectFeesTest is StakingTest, UtilsTest {
     }
 
     function test_ownerCanClaimCollectedFees() public {
-        init();
-
         generateFeesFromEarlierWithdrawals();
 
         uint256 contractFeesStart = staking.collectedFees();

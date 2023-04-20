@@ -9,8 +9,12 @@ import {UtilsTest} from "../utils/utils.t.sol";
 //////////////////////////////////////////////////////////////////////////*/
 
 contract WithdrawTest is StakingTest, UtilsTest {
-    function test_BobPaysTaxForWithdrawEarlier() public {
+    function setUp() public override {
+        super.setUp();
         init();
+    }
+
+    function test_BobPaysTaxForWithdrawEarlier() public {
         bobStakes();
 
         (uint256 balance, , , , , ) = staking.stakingDetails(bob);
@@ -33,7 +37,6 @@ contract WithdrawTest is StakingTest, UtilsTest {
     }
 
     function test_RevertsAliceZeroWithdrawalTrial() public {
-        init();
         aliceStakes();
 
         vm.expectRevert(Staking_Withdraw_Amount_Cannot_Be_Zero.selector);
@@ -41,14 +44,11 @@ contract WithdrawTest is StakingTest, UtilsTest {
     }
 
     function test_AliceWithdrawalRevertsWithoutStake() public {
-        init();
-
         vm.expectRevert(Staking_No_Balance_Staked.selector);
         aliceWithdrawal();
     }
 
     function test_JohnWithdrawRevertsWhenExceedsBalance() public {
-        init();
         johnStakes();
 
         vm.expectRevert(Staking_Amount_Exceeds_Balance.selector);
@@ -56,7 +56,6 @@ contract WithdrawTest is StakingTest, UtilsTest {
     }
 
     function test_BobCanWithdrawWithoutPayingTax() public {
-        init();
         bobStakes();
 
         uint256 totalStakedStart = staking.totalStaked();
@@ -80,7 +79,6 @@ contract WithdrawTest is StakingTest, UtilsTest {
     }
 
     function testJohnCanWithdrawAfterStakingPeriod() public {
-        init();
         johnStakes();
 
         vm.warp(block.timestamp + staking.END_STAKING_UNIX_TIME() + 2 days);
@@ -102,7 +100,6 @@ contract WithdrawTest is StakingTest, UtilsTest {
     //////////////////////////////////////////////////////////////////////////*/
 
     function testFuzz_BobWithdrawal(uint256 amount, uint256 timestamp) public {
-        init();
         vm.assume(
             amount > 0 &&
                 amount < token0.totalSupply() &&

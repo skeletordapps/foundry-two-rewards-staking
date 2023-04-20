@@ -9,8 +9,12 @@ import {UtilsTest} from "../utils/utils.t.sol";
 //////////////////////////////////////////////////////////////////////////*/
 
 contract ClaimRewardsTest is StakingTest, UtilsTest {
-    function test_CannotClaimWhenHasOptionsSelected() public {
+    function setUp() public override {
+        super.setUp();
         init();
+    }
+
+    function test_CannotClaimWhenHasOptionsSelected() public {
         bobStakes();
 
         vm.expectRevert(Staking_No_Rewards_Options_Selected.selector);
@@ -18,7 +22,6 @@ contract ClaimRewardsTest is StakingTest, UtilsTest {
     }
 
     function test_BobClaimsZeroRewards() public {
-        init();
         bobStakes();
 
         vm.expectEmit(true, true, true, true);
@@ -27,8 +30,6 @@ contract ClaimRewardsTest is StakingTest, UtilsTest {
     }
 
     function test_BobClaimsBothRewards() public {
-        init();
-
         vm.warp(block.timestamp + 1 days);
         johnStakes();
 
@@ -81,7 +82,6 @@ contract ClaimRewardsTest is StakingTest, UtilsTest {
     }
 
     function test_BobCanClaimRewardsAfterStakingPeriod() public {
-        init();
         bobStakes();
 
         vm.warp(block.timestamp + staking.END_STAKING_UNIX_TIME() + 2 days);
@@ -130,8 +130,6 @@ contract ClaimRewardsTest is StakingTest, UtilsTest {
     }
 
     function test_JohnCompoundsRewards() public {
-        init();
-
         vm.warp(block.timestamp + 1 days);
         johnStakes();
 
@@ -168,8 +166,6 @@ contract ClaimRewardsTest is StakingTest, UtilsTest {
     //////////////////////////////////////////////////////////////////////////*/
 
     function testBobClaimRewardsAfterWithdrawal() public {
-        init();
-
         vm.warp(block.timestamp + 10 days);
 
         bobStakes();
@@ -207,7 +203,6 @@ contract ClaimRewardsTest is StakingTest, UtilsTest {
     }
 
     function testJohnCompoundRewardsAfterWithdrawal() public {
-        init();
         vm.warp(block.timestamp + 10 days);
         johnStakes();
 
