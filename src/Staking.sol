@@ -7,23 +7,7 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "forge-std/console.sol";
 import "./Settings.sol";
-
-error Staking_Not_Initialized();
-error Staking_Already_Initialized();
-error Staking_Period_Ended();
-error Staking_Max_Limit_Reached();
-error Staking_No_Rewards_Available();
-error Staking_No_Balance_Staked();
-error Staking_Amount_Exceeds_Balance();
-error Staking_Withdraw_Amount_Cannot_Be_Zero();
-error Staking_Apply_Not_Available_Yet();
-error Staking_No_Rewards_Options_Selected();
-error Staking_Insufficient_Amount_To_Stake();
-
-enum YieldType {
-    TOKEN0,
-    TOKEN1
-}
+import "./interfaces/IStaking.sol";
 
 /**
  * @title Staking contract
@@ -32,7 +16,7 @@ enum YieldType {
  * @dev This contract allows users to stake tokens and earn rewards over a period of time.
  *      The contract owner can set the reward rate and duration of the staking period.
  */
-contract Staking is Ownable, Settings {
+contract Staking is IStaking, Ownable, Settings {
     using SafeERC20 for IERC20;
     using SafeMath for uint256;
 

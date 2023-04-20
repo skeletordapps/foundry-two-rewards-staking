@@ -2,11 +2,9 @@
 pragma solidity 0.8.19;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "./interfaces/ISettings.sol";
 
-error Settings_Apply_Not_Available_Yet();
-error Settings_Range_Not_Allowed();
-
-contract Settings is Ownable {
+contract Settings is Ownable, ISettings {
     uint256 public constant MAX_ALLOWED_TO_STAKE = 100_000_000 ether;
 
     /// THE LOCK TIME TO UPDATES ANY CONFIG
