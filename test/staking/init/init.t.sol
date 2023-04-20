@@ -2,12 +2,13 @@
 pragma solidity ^0.8.19;
 
 import {StakingTest} from "../../Staking.t.sol";
+import {UtilsTest} from "../utils/utils.t.sol";
 
 /*//////////////////////////////////////////////////////////////////////////
                                   INIT TESTS
 //////////////////////////////////////////////////////////////////////////*/
 
-contract InitTest is StakingTest {
+contract InitTest is StakingTest, UtilsTest {
     function test_SuccessfulyConstructed() public {
         assertEq(staking.TOKEN0(), address(token0));
         assertEq(staking.totalStaked(), 0);

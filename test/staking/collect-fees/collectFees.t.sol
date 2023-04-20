@@ -2,12 +2,13 @@
 pragma solidity ^0.8.19;
 
 import {StakingTest} from "../../Staking.t.sol";
+import {UtilsTest} from "../utils/utils.t.sol";
 
 /*//////////////////////////////////////////////////////////////////////////
                             COLLECTING FEES TESTS
 //////////////////////////////////////////////////////////////////////////*/
 
-contract CollectFeesTest is StakingTest {
+contract CollectFeesTest is StakingTest, UtilsTest {
     function test_EarlierWithdrawalsGeneratesFees() public {
         init();
 

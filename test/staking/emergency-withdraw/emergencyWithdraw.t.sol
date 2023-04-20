@@ -2,12 +2,13 @@
 pragma solidity ^0.8.19;
 
 import {StakingTest} from "../../Staking.t.sol";
+import {UtilsTest} from "../utils/utils.t.sol";
 
 /*//////////////////////////////////////////////////////////////////////////
                             EMERGENCY WITHDRAW TESTS
 //////////////////////////////////////////////////////////////////////////*/
 
-contract CollectFeesTest is StakingTest {
+contract CollectFeesTest is StakingTest, UtilsTest {
     function test_BobCannotUseEmergencyWithdraw() public {
         vm.startPrank(bob);
         vm.expectRevert("Ownable: caller is not the owner");

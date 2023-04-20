@@ -2,12 +2,13 @@
 pragma solidity ^0.8.19;
 
 import {StakingTest} from "../../Staking.t.sol";
+import {UtilsTest} from "../utils/utils.t.sol";
 
 /*//////////////////////////////////////////////////////////////////////////
                                 CLAIM REWARDS TESTS
 //////////////////////////////////////////////////////////////////////////*/
 
-contract ClaimRewardsTest is StakingTest {
+contract ClaimRewardsTest is StakingTest, UtilsTest {
     function test_CannotClaimWhenHasOptionsSelected() public {
         init();
         bobStakes();

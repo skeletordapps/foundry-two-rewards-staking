@@ -2,12 +2,13 @@
 pragma solidity ^0.8.19;
 
 import {StakingTest} from "../../Staking.t.sol";
+import {UtilsTest} from "../utils/utils.t.sol";
 
 /*//////////////////////////////////////////////////////////////////////////
                                   STAKE TESTS
 //////////////////////////////////////////////////////////////////////////*/
 
-contract StakeTest is StakingTest {
+contract StakeTest is StakingTest, UtilsTest {
     function test_StakeRevertsWhenNotInitialized() public {
         vm.expectRevert(Staking_Not_Initialized.selector);
         staking.stake(0);

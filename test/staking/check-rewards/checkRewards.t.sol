@@ -2,12 +2,13 @@
 pragma solidity ^0.8.19;
 
 import {StakingTest} from "../../Staking.t.sol";
+import {UtilsTest} from "../utils/utils.t.sol";
 
 /*//////////////////////////////////////////////////////////////////////////
                             CHECKING REWARDS TESTS
 //////////////////////////////////////////////////////////////////////////*/
 
-contract CheckRewardsTest is StakingTest {
+contract CheckRewardsTest is StakingTest, UtilsTest {
     function test_AliceCannotAccumulateRewards() public {
         init();
         aliceStakes();

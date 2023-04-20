@@ -2,13 +2,14 @@
 pragma solidity ^0.8.19;
 
 import {StakingTest} from "../../Staking.t.sol";
+import {UtilsTest} from "../utils/utils.t.sol";
 import "@openzeppelin/contracts/interfaces/IERC20.sol";
 
 /*//////////////////////////////////////////////////////////////////////////
                                     ADD REWARDS TESTS
 //////////////////////////////////////////////////////////////////////////*/
 
-contract CollectFeesTest is StakingTest {
+contract CollectFeesTest is StakingTest, UtilsTest {
     function test_addRewards() public {
         uint256 token0Amount = 100 ether;
         uint256 token1Amount = 200 ether;
