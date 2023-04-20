@@ -10,10 +10,10 @@ contract Settings is Ownable {
     uint256 public constant MAX_ALLOWED_TO_STAKE = 100_000_000 ether;
 
     /// THE LOCK TIME TO UPDATES ANY CONFIG
-    uint256 public constant SETTINGS_MIN_LOCK_TIME = 1 hours;
+    uint256 public constant SETTINGS_MIN_LOCK_TIME = 0 hours;
     uint256 public constant SETTINGS_MAX_LOCK_TIME = 24 hours;
-    uint256 public SETTINGS_LOCK_TIME = 5 minutes;
-    uint256 public NEW_SETTINGS_LOCK_TIME = 5 minutes;
+    uint256 public SETTINGS_LOCK_TIME = 1 hours;
+    uint256 public NEW_SETTINGS_LOCK_TIME = 0 hours;
 
     /// A LOCK TIME TO CHARGE USERS THAT TRY TO WITHDRAW EARLIER THAN THE SPECIFIED LOCK TIME
     uint256 public constant WITHDRAW_EARLIER_FEE_MIN_LOCK_TIME = 24 hours;
@@ -22,7 +22,7 @@ contract Settings is Ownable {
     uint256 public NEW_WITHDRAW_EARLIER_FEE_LOCK_TIME = 24 hours;
 
     /// FEE FOR WITHDRAWING EARLIER THAN THE SPECIFIED LOCK TIME
-    uint256 public constant WITHDRAW_EARLIER_MIN_FEE = 1; // 1%
+    uint256 public constant WITHDRAW_EARLIER_MIN_FEE = 0; // 0%
     uint256 public constant WITHDRAW_EARLIER_MAX_FEE = 5; // 5%
     uint256 public WITHDRAW_EARLIER_FEE = 5; // 5%
     uint256 public NEW_WITHDRAW_EARLIER_FEE = 5; // 5%
@@ -33,6 +33,7 @@ contract Settings is Ownable {
 
     /// WHEN STAKING PERIOD ENDS
     uint256 public END_STAKING_UNIX_TIME;
+    uint256 public NEW_END_STAKING_UNIX_TIME;
 
     /// TOKEN 0 REWARDS PER SECOND AVAILABLE
     uint256 public TOKEN0_REWARDS_PER_SECOND;
@@ -150,5 +151,18 @@ contract Settings is Ownable {
         delete NEW_MIN_STAKED_TO_REWARD;
 
         emit Settings_Updated();
+    }
+
+    function updateStakingPeriod(uint256 period) external onlyOwner {
+        NEW_END_STAKING_UNIX_TIME = block.timestamp + period;
+        lastSettingsUpdate = block.timestamp;
+    }
+
+    function applyStakingPeriodUpdate() external onlyOwner {
+        if (block.timestamp < lastSettingsUpdate + SETTINGS_LOCK_TIME)
+            revert Settings_Apply_Not_Available_Yet();
+
+        END_STAKING_UNIX_TIME = NEW_END_STAKING_UNIX_TIME;
+        delete NEW_END_STAKING_UNIX_TIME;
     }
 }
