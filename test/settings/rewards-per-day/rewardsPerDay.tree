@@ -1,0 +1,5 @@
+└── rewardsPerDay.t.sol
+    └──  when is not owner
+      └── it should revert
+    └── update rewards per day
+      └── it should update
