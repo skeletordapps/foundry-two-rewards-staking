@@ -1,4 +1,4 @@
-├── minStake.t.sol
+└── minStake.t.sol
     └──  when is not owner
       └── it should revert
     └── update min stake to reward
