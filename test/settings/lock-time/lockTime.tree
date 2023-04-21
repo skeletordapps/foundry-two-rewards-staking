@@ -1,0 +1,7 @@
+└── lockTime.t.sol
+    └──  when is out of limits
+      └── it should revert
+    └──  when is not owner
+      └── it should revert
+    └── update settings lock time
+      └── it should update
