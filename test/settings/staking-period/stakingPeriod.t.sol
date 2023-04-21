@@ -11,7 +11,11 @@ contract StakingPeriodTest is SettingsTest {
         vm.stopPrank();
     }
 
-    function test_OwnerCanUpdateStakingPeriod() public {
+    modifier whenIsOwner() {
+        _;
+    }
+
+    function test_updateStakingPeriod() public whenIsOwner {
         uint256 updatedAt = block.timestamp;
         uint256 newPeriod = 3 days;
         settings.updateStakingPeriod(newPeriod);

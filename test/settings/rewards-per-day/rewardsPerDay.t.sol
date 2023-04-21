@@ -14,7 +14,11 @@ contract RewardsPerDay is SettingsTest {
         settings.applyRewardsUpdate();
     }
 
-    function test_OnlyOwnerCanUpdateRewards() public {
+    modifier whenIsOwner() {
+        _;
+    }
+
+    function test_updateRewards() public whenIsOwner {
         uint256 token0Value = 100 ether;
         uint256 token1Value = 200 ether;
 

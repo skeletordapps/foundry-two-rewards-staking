@@ -14,14 +14,29 @@ contract WithdrawLockTimeTest is SettingsTest {
         settings.updateWithdrawEarlierFeeLockTime(50 hours);
     }
 
-    function test_RevertWhenNotOwnerUpdatingWithdrawEarlierLockTime() public {
+    modifier whenIsBetweenLimits() {
+        _;
+    }
+
+    function test_RevertWhenNotOwnerUpdatingWithdrawEarlierLockTime()
+        public
+        whenIsBetweenLimits
+    {
         vm.startPrank(bob);
         vm.expectRevert("Ownable: caller is not the owner");
         settings.updateWithdrawEarlierFeeLockTime(12 hours);
         vm.stopPrank();
     }
 
-    function test_OwnerCanUpdateWithdrawEarlierLockTime() public {
+    modifier onlyOwner() {
+        _;
+    }
+
+    function test_updateWithdrawEarlierLockTime()
+        public
+        whenIsBetweenLimits
+        onlyOwner
+    {
         uint256 newTime = 32 hours;
         settings.updateWithdrawEarlierFeeLockTime(newTime);
         assertEq(settings.NEW_WITHDRAW_EARLIER_FEE_LOCK_TIME(), newTime);

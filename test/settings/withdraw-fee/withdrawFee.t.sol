@@ -9,14 +9,29 @@ contract WithdrawFeeTest is SettingsTest {
         settings.updateWithdrawEarlierFee(6);
     }
 
-    function test_RevertWhenNotOwnerUpdatingWithdrawEarlierFee() public {
+    modifier whenIsBetweenLimits() {
+        _;
+    }
+
+    function test_RevertWhenNotOwnerUpdatingWithdrawEarlierFee()
+        public
+        whenIsBetweenLimits
+    {
         vm.startPrank(bob);
         vm.expectRevert("Ownable: caller is not the owner");
         settings.updateWithdrawEarlierFee(4);
         vm.stopPrank();
     }
 
-    function test_OwnerCanUpdateWithdrawEarlierFee() public {
+    modifier whenIsOwner() {
+        _;
+    }
+
+    function test_updateWithdrawEarlierFee()
+        public
+        whenIsBetweenLimits
+        whenIsOwner
+    {
         uint256 newFee = 4;
         settings.updateWithdrawEarlierFee(newFee);
         assertEq(settings.NEW_WITHDRAW_EARLIER_FEE(), newFee);

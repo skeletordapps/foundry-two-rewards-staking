@@ -9,14 +9,29 @@ contract LockTimeTest is SettingsTest {
         settings.updateSettingsLockTime(48 hours);
     }
 
-    function test_RevertWhenNotOwnerUpdatingSettingsLockTime() public {
+    modifier whenIsBetweenLimits() {
+        _;
+    }
+
+    function test_RevertWhenNotOwnerUpdatingSettingsLockTime()
+        public
+        whenIsBetweenLimits
+    {
         vm.startPrank(bob);
         vm.expectRevert("Ownable: caller is not the owner");
         settings.updateSettingsLockTime(12 hours);
         vm.stopPrank();
     }
 
-    function test_OwnerCanUpdateSeetingsLockTime() public {
+    modifier whenIsOwner() {
+        _;
+    }
+
+    function test_updateSeetingsLockTime()
+        public
+        whenIsBetweenLimits
+        whenIsOwner
+    {
         uint256 newTime = 12 hours;
         settings.updateSettingsLockTime(newTime);
         assertEq(settings.NEW_SETTINGS_LOCK_TIME(), newTime);

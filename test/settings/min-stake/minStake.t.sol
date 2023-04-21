@@ -11,7 +11,11 @@ contract MinStakeTest is SettingsTest {
         vm.stopPrank();
     }
 
-    function test_OwnerCanUpdateMinStakedToReward() public {
+    modifier whenIsOwner() {
+        _;
+    }
+
+    function test_updateMinStakedToReward() public whenIsOwner {
         uint256 newMin = 300 ether;
         settings.updateMinStakedToReward(newMin);
         assertEq(settings.NEW_MIN_STAKED_TO_REWARD(), newMin);
