@@ -12,4 +12,6 @@ contract SettingsScript is Script {
         new Settings();
         vm.stopBroadcast();
     }
+
+    function testMock() external {}
 }

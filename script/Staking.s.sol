@@ -15,4 +15,6 @@ contract StakingScript is Script {
         new Staking(_token0, _token1);
         vm.stopBroadcast();
     }
+
+    function testMock() external {}
 }

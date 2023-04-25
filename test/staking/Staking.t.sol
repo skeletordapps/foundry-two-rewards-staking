@@ -2,8 +2,8 @@
 pragma solidity ^0.8.19;
 
 import "forge-std/Test.sol";
-import "../src/Staking.sol";
-import "../src/interfaces/IStaking.sol";
+import "../../src/Staking.sol";
+import "../../src/interfaces/IStaking.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/interfaces/IERC20.sol";
 import "forge-std/StdStorage.sol";
@@ -70,4 +70,6 @@ contract StakingTest is Test, IStaking {
         john = vm.addr(6);
         vm.label(john, "john");
     }
+
+    function testMockBase() external {}
 }

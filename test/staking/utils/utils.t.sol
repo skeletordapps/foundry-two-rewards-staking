@@ -1,7 +1,7 @@
 //SPDX-License-Identifier: Unlicense
 pragma solidity 0.8.19;
 
-import {StakingTest} from "../../Staking.t.sol";
+import {StakingTest} from "../Staking.t.sol";
 
 /*//////////////////////////////////////////////////////////////////////////
                                 HELPER FUNCTIONS
@@ -105,4 +105,6 @@ contract UtilsTest is StakingTest {
         aliceWithdrawal();
         johnWithdrawal();
     }
+
+    function testMock() external {}
 }

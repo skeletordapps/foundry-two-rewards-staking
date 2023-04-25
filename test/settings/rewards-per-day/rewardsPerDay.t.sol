@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.19;
 
-import {SettingsTest} from "../../Settings.t.sol";
+import {SettingsTest} from "../Settings.t.sol";
 
 contract RewardsPerDay is SettingsTest {
     function test_RevertWhenTryUpdateRewardsBefore24h() public {

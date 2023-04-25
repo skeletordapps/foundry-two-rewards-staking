@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.19;
 
-import {StakingTest} from "../../Staking.t.sol";
+import {StakingTest} from "../Staking.t.sol";
 import {UtilsTest} from "../utils/utils.t.sol";
 import "@openzeppelin/contracts/interfaces/IERC20.sol";
 
